@@ -1,7 +1,6 @@
 package com.neuroforge.user.config;
 
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-
 import com.neuroforge.user.security.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
