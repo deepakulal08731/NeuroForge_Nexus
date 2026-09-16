@@ -908,8 +908,8 @@
 
 
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Calendar, Crown, FolderKanban, Kanban, Plus, Repeat2, Users } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Calendar, Crown, FolderKanban, Kanban, Plus, Repeat2, Sparkles, Users } from 'lucide-react'
 import {
   createProject,
   fetchProjects,
@@ -1010,6 +1010,7 @@ function ProjectCard({ project, activeSprint, onOpenBoard }) {
 export default function Projects() {
   const { user, hasRole } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const canCreate = hasRole('ADMIN', 'PROJECT_LEAD', 'PROJECT_MANAGER')
 
   const [projects, setProjects] = useState(null)
@@ -1019,6 +1020,8 @@ export default function Projects() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showForm, setShowForm] = useState(false)
+  // Parsed New-Project values handed over by the AI Assistant (AIAssistant.jsx).
+  const [aiPrefill, setAiPrefill] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -1057,6 +1060,23 @@ export default function Projects() {
     }
   }, [user, canCreate])
 
+  // ── AI Assistant handoff ───────────────────────────────────────────────
+  // The assistant navigates here with a parsed prefill in router state:
+  // auto-open the New Project form with those values, then clear the router
+  // state so refreshing the page doesn't reopen the modal. The state updates
+  // run in a deferred tick (not synchronously during the effect pass) to
+  // avoid cascading renders while the effect synchronizes with the router.
+  useEffect(() => {
+    const prefill = location.state?.aiPrefill
+    if (!prefill || !canCreate) return
+    const tick = window.setTimeout(() => {
+      setAiPrefill(prefill)
+      setShowForm(true)
+      navigate(location.pathname, { replace: true })
+    }, 0)
+    return () => window.clearTimeout(tick)
+  }, [location.state, location.pathname, canCreate, navigate])
+
   const safeProjects = projects || []
 
   return (
@@ -1066,7 +1086,14 @@ export default function Projects() {
         subtitle={canCreate ? 'Every workstream on the anvil.' : 'Workstreams you can follow.'}
       >
         {canCreate ? (
-          <button type="button" onClick={() => setShowForm(true)} className="nf-btn-primary">
+          <button
+            type="button"
+            onClick={() => {
+              setAiPrefill(null)
+              setShowForm(true)
+            }}
+            className="nf-btn-primary"
+          >
             <Plus className="h-4 w-4" aria-hidden /> New project
           </button>
         ) : null}
@@ -1091,7 +1118,14 @@ export default function Projects() {
           }
         >
           {canCreate ? (
-            <button type="button" onClick={() => setShowForm(true)} className="nf-btn-primary">
+            <button
+              type="button"
+              onClick={() => {
+                setAiPrefill(null)
+                setShowForm(true)
+              }}
+              className="nf-btn-primary"
+            >
               <Plus className="h-4 w-4" aria-hidden /> New project
             </button>
           ) : null}
@@ -1116,6 +1150,7 @@ export default function Projects() {
         <NewProjectForm
           teams={teams}
           users={users}
+          aiPrefill={aiPrefill}
           onClose={() => setShowForm(false)}
           onCreated={(created) => {
             setProjects((current) => [created, ...(current ?? [])])
@@ -1127,10 +1162,12 @@ export default function Projects() {
   )
 }
 
-function NewProjectForm({ teams, users, onClose, onCreated }) {
-  const [form, setForm] = useState(EMPTY_FORM)
+function NewProjectForm({ teams, users, aiPrefill, onClose, onCreated }) {
+  // Seed with the AI Assistant's parsed values when handed over from /projects.
+  const [form, setForm] = useState(() => ({ ...EMPTY_FORM, ...(aiPrefill || {}) }))
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [showAiBanner, setShowAiBanner] = useState(true)
 
   useEffect(() => {
     function onKeyDown(event) {
@@ -1189,6 +1226,23 @@ function NewProjectForm({ teams, users, onClose, onCreated }) {
         </div>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
+          {aiPrefill && showAiBanner ? (
+            <div className="col-span-full flex items-center justify-between gap-3 rounded-lg border border-ember-500/30 bg-ember-500/10 px-3 py-2.5 text-sm text-ember-300">
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
+                Parsed from your AI Assistant request — review before creating.
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAiBanner(false)}
+                aria-label="Dismiss"
+                className="shrink-0 text-ember-300/70 transition hover:text-ember-300"
+              >
+                ✕
+              </button>
+            </div>
+          ) : null}
+
           {error ? (
             <p
               role="alert"
