@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cicd-service
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cicd-service
+  template:
+    metadata:
+      labels:
+        app: cicd-service
+    spec:
+      containers:
+      - name: cicd-service
+        image: neuroforge/cicd-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8083
+        env:
+        - name: SPRING_DATA_MONGODB_URI
+          value: "mongodb://mongo:27017/nexus_cicd_db"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cicd-service
+  namespace: production
+spec:
+  selector:
+    app: cicd-service
+  ports:
+    - protocol: TCP
+      port: 8083
+      targetPort: 8083
+  type: ClusterIP
